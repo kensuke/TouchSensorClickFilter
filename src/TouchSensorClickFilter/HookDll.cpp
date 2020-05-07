@@ -13,7 +13,7 @@ class HookDllImpl {
         In no a test I was able to click faster than in 50 ms.
         In all the tests, false clicks by touch sensor were under 16 ms.
     *********************************************************************/
-    static const unsigned TOO_FAST_CLICK = 50; // ms
+	unsigned int TOO_FAST_CLICK;// = 50; // ms
 public:
     HookDllImpl();
     ~HookDllImpl();
@@ -22,7 +22,9 @@ public:
     void TimerProc();
 
     bool Disabled() { return Disable || Remote.Detected(); }
-    void Enable(bool enable) { Disable = !enable; }
+    void Enable(bool enable) { 
+		TOO_FAST_CLICK = ReadClickIntervalThresholdFromIniFile();
+		Disable = !enable; }
 
     HHOOK hHook() const { return Hook; }
 
@@ -47,7 +49,26 @@ private:
         LButtonDown = true;
     }
 
-    HHOOK  Hook    = 0;
+	unsigned int ReadClickIntervalThresholdFromIniFile()
+	{
+		unsigned int th = 50;
+
+		TCHAR szPath[MAX_PATH + 4] = {0};
+		if (GetModuleFileName(NULL, szPath, MAX_PATH) > 0)
+		{
+			_tcscat(szPath, _T(".ini"));
+			th = GetPrivateProfileInt(TEXT("Setting"), TEXT("ClickInterval"), 0, szPath);
+			if (th == 0) {
+				TCHAR szSec[19 + 4] = {0};
+				wsprintf(szSec, TEXT("ClickInterval = 50"));
+				WritePrivateProfileSection(TEXT("Setting"), szSec, szPath);
+			}
+		}
+
+		return th;
+	}
+
+	HHOOK  Hook    = 0;
     HANDLE Timer   = 0;
     bool   Disable = false;
     MSLLHOOKSTRUCT SavedEvent = { 0, };
@@ -110,7 +131,8 @@ static void CALLBACK WaitOrTimerCallback(PVOID /*lpParameter*/, BOOLEAN /*TimerO
 
 HookDllImpl::HookDllImpl() {
     HINSTANCE hSelf = NULL;
-    ::GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (TCHAR *)::LowLevelMouseProc, &hSelf);
+	TOO_FAST_CLICK = ReadClickIntervalThresholdFromIniFile();
+	::GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (TCHAR *)::LowLevelMouseProc, &hSelf);
     Hook = ::SetWindowsHookEx(WH_MOUSE_LL, ::LowLevelMouseProc, hSelf, 0);
 }
 
